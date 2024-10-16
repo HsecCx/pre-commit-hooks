@@ -10,9 +10,11 @@ This pre-commit hook script scans the staged files in the `src/` directory for s
 4. Aborts the commit if secrets are found.
 
 ## Setup:
-1. Place the script in `.git/hooks/pre-commit`.
-2. Ensure `2ms.exe` is installed and configured.
-3. Make the script executable:
+1. Download and install **2ms** from the official GitHub repository: [Checkmarx/2ms](https://github.com/Checkmarx/2ms).
+2. Place the `2ms.exe` in a directory included in your system's `PATH`, or reference its location directly in the script.
+3. Place the pre-commit script in `.git/hooks/pre-commit`.
+4. Ensure the pre-commit script points to the correct path for `2ms.exe`. 
+5. Make the script executable:
     ```bash
     chmod +x .git/hooks/pre-commit
     ```
