@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# Get the current working directory of the script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+#UPDATE RELATIVE PATH HERE
+SCAN_PATH="$(realpath "$SCRIPT_DIR/../../src")"
+
+# Output the script's working directory and scan path
+echo "Script is running from: $SCRIPT_DIR"
+echo "Scanning directory: $SCAN_PATH"
+
+# Run the scan command (UPDATE SCAN PATH HERE -- OR ADD AN ENV VAR)
+RAW_SCAN_RESULT=$(C:/Tools/windows-amd64/2ms.exe filesystem --path "$SCAN_PATH")
+
+# Remove ANSI escape codes from the result
+SCAN_RESULT=$(echo "$RAW_SCAN_RESULT" | sed 's/\x1b\[[0-9;]*m//g')
+
+# Check for secrets found
+SECRETS_FOUND=$(echo "$SCAN_RESULT" | grep "totalsecretsfound: 1")
+
+if [ -n "$SECRETS_FOUND" ]; then
+    echo "Secrets detected! Pre-commit aborted."
+    echo "$SCAN_RESULT"  # Optionally display the scan results
+    exit 1
+else
+    echo "No secrets detected. Proceeding with commit."
+    exit 0
+fi
