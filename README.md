@@ -1,27 +1,98 @@
+
 # Pre-Commit Hook Script
 
-## Overview:
-This pre-commit hook script scans the staged files in the `src/` directory for secrets (e.g., API keys). If secrets are detected, the commit will be aborted, ensuring sensitive information isn't committed.
+A Bash script to prevent committing secrets (e.g., API keys) to the repository by scanning the `src/` (or another target) directory using `2ms.exe`. If secrets are detected exceeding a defined threshold, the commit is aborted.
 
-## How It Works:
-1. Runs from `.git/hooks` directory.
-2. Scans the `src/` folder using `2ms.exe`.
-3. Removes ANSI escape codes from the scan results.
-4. Aborts the commit if secrets are found.
+## Table of Contents
 
-## Setup:
-1. Download and install **2ms** from the official GitHub repository: [Checkmarx/2ms](https://github.com/Checkmarx/2ms).
-2. Place the `2ms.exe` in a directory included in your system's `PATH`, or reference its location directly in the script.
-3. Place the pre-commit script in `.git/hooks/pre-commit`.
-4. Ensure the pre-commit script points to the correct path for `2ms.exe`. 
-5. Make the script executable:
-    ```bash
-    chmod +x .git/hooks/pre-commit
-    ```
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Disabling the Hook](#disabling-the-hook)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+- [References](#references)
 
-## Configuration:
-- Update `SCAN_PATH` as needed to point to the correct directory.
-- Ensure the correct path to `2ms.exe` is set in the script, or set it using an environment variable.
+## Features
 
-## Running:
-The script will automatically run when a commit is attempted. If secrets are detected, the commit will be stopped, and the detected secrets will be shown in the output.
+- Scans the `src/` directory for secrets using `2ms.exe`.
+- Removes ANSI escape codes for clean output.
+- Compares detected secrets against a configurable threshold.
+- Aborts commit if secrets exceed the threshold.
+- Easily enabled or disabled via configuration.
+- Configurable paths and thresholds via environment variables.
+
+## Prerequisites
+
+- **Git**: Ensure Git is installed on your system.
+- **2ms**: Download and install `2ms.exe` from [Checkmarx/2ms](https://github.com/Checkmarx/2ms).
+- **Bash**: The script is written for Bash. Windows users can use Git Bash or WSL.
+
+## Installation
+
+1. **Download `2ms.exe`**
+
+   - Download from the [Checkmarx official repository](https://github.com/Checkmarx/2ms).
+   - Place `2ms.exe` in a directory included in your system's `PATH`, or note its location for configuration.
+
+2. **Ensure the Pre-Commit Script is in Place**
+
+   The pre-commit script should be located at `.git/hooks/pre-commit` in your repository. If it's not there, add it accordingly.
+
+3. **Make the Script Executable**
+
+   ```  
+   chmod +x .git/hooks/pre-commit
+
+## Configuration
+The script can be customized via environment variables:
+
+SCAN_PATH: Directory to scan. Default is `../../src` relative to the script.
+`export SCAN_PATH="/path/to/your/src"`
+
+TWO_MS_PATH: Path to 2ms.exe. Default is C:/Tools/windows-amd64/2ms.exe.
+`export TWO_MS_PATH="/path/to/2ms.exe"`
+
+THRESHOLD: Maximum allowed secrets before aborting commit. Default is 0.
+`export THRESHOLD=1`
+
+
+ENABLED: Enable or disable the pre-commit scan. Default is true.
+`export ENABLED=false`
+
+## Usage
+With the pre-commit hook installed and configured, simply commit your changes as usual:
+
+If no secrets are detected over the threshold, the commit proceeds.
+If secrets are detected exceeding the threshold, the commit is aborted, and details are displayed.
+
+Disabling the Hook
+To temporarily disable the pre-commit scan without removing the script:
+`export ENABLED=false`
+
+To re-enable:
+` unset ENABLED  # Or set it to true`
+## Troubleshooting
+### 2ms.exe Not Found:
+
+Ensure 2ms.exe exists at the path specified in TWO_MS_PATH and has execute permissions.
+
+### Script Permissions:
+
+Ensure the pre-commit script is executable:
+`chmod +x .git/hooks/pre-commit`
+
+### Invalid TOTAL_SECRETS Value:
+If you receive an error about determining the total number of secrets, check the output format of 2ms.exe. The parsing in the script may need adjustment.
+
+### Windows Path Issues:
+
+Ensure paths are correctly formatted for your environment. Windows users may need to adjust paths or use Git Bash.
+
+
+## License
+
+This project is licensed under the MIT License.

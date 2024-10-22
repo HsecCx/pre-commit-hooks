@@ -1,29 +1,57 @@
 #!/bin/bash
 
-# Get the current working directory of the script
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+set -euo pipefail
 
-#UPDATE RELATIVE PATH HERE
-SCAN_PATH="$(realpath "$SCRIPT_DIR/../../src")"
+# Function to display error messages
+error() {
+    echo "Error: $1" >&2
+    exit 1
+}
+
+# Configuration variables (can be overridden by environment variables)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCAN_PATH="${SCAN_PATH:-$(realpath "$SCRIPT_DIR/../../src")}"
+TWO_MS_PATH="${TWO_MS_PATH:-C:/Tools/windows-amd64/2ms.exe}"
+THRESHOLD="${THRESHOLD:-0}"
+ENABLED="${ENABLED:-true}"
 
 # Output the script's working directory and scan path
 echo "Script is running from: $SCRIPT_DIR"
 echo "Scanning directory: $SCAN_PATH"
 
-# Run the scan command (UPDATE SCAN PATH HERE -- OR ADD AN ENV VAR)
-RAW_SCAN_RESULT=$(C:/Tools/windows-amd64/2ms.exe filesystem --path "$SCAN_PATH")
+# Check if the script is enabled
+if [[ "$ENABLED" != "true" ]]; then
+    echo "Pre-commit scan is disabled. Proceeding with commit."
+    exit 0
+fi
+
+# Verify that the 2ms.exe tool exists and is executable
+if [[ ! -x "$TWO_MS_PATH" ]]; then
+    error "2ms.exe tool not found or is not executable at path: $TWO_MS_PATH"
+fi
+
+# Run the scan command using the TWO_MS_PATH variable
+if ! RAW_SCAN_RESULT=$("$TWO_MS_PATH" filesystem --path "$SCAN_PATH"); then
+    error "Failed to execute 2ms.exe scan."
+fi
 
 # Remove ANSI escape codes from the result
-SCAN_RESULT=$(echo "$RAW_SCAN_RESULT" | sed 's/\x1b\[[0-9;]*m//g')
+SCAN_RESULT=$(echo "$RAW_SCAN_RESULT" | sed -E 's/\x1b\[[0-9;]*[mK]//g')
 
-# Check for secrets found
-SECRETS_FOUND=$(echo "$SCAN_RESULT" | grep "totalsecretsfound: 1")
+# Extract the total number of secrets found
+TOTAL_SECRETS=$(echo "$SCAN_RESULT" | grep -Eo "totalsecretsfound:[[:space:]]*[0-9]+" | awk '{print $2}')
 
-if [ -n "$SECRETS_FOUND" ]; then
-    echo "Secrets detected! Pre-commit aborted."
-    echo "$SCAN_RESULT"  # Optionally display the scan results
+# Check if TOTAL_SECRETS is a valid number
+if ! [[ "$TOTAL_SECRETS" =~ ^[0-9]+$ ]]; then
+    error "Unable to determine the total number of secrets found."
+fi
+
+# Compare total secrets found with the threshold
+if (( TOTAL_SECRETS > THRESHOLD )); then
+    echo "Secrets detected! Total secrets found ($TOTAL_SECRETS) exceed the threshold ($THRESHOLD). Pre-commit aborted."
+    echo "$SCAN_RESULT"
     exit 1
 else
-    echo "No secrets detected. Proceeding with commit."
+    echo "No secrets detected over the threshold. Proceeding with commit."
     exit 0
 fi
