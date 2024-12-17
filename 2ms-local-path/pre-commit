@@ -1,19 +1,12 @@
 #!/bin/bash
 
-set -euo pipefail
-
-# Function to display error messages
-error() {
-    echo "Error: $1" >&2
-    exit 1
-}
-
 # Configuration variables (can be overridden by environment variables)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCAN_PATH="${SCAN_PATH:-$(realpath "$SCRIPT_DIR/../../src")}"
+SCAN_PATH="${SCAN_PATH:-$(realpath "$SCRIPT_DIR/../../")}"
 TWO_MS_PATH="${TWO_MS_PATH:-C:/Tools/windows-amd64/2ms.exe}"
 THRESHOLD="${THRESHOLD:-0}"
 ENABLED="${ENABLED:-true}"
+MASK_SECRETS="${MASK_SECRETS:-true}"
 
 # Output the script's working directory and scan path
 echo "Script is running from: $SCRIPT_DIR"
@@ -27,31 +20,38 @@ fi
 
 # Verify that the 2ms.exe tool exists and is executable
 if [[ ! -x "$TWO_MS_PATH" ]]; then
-    error "2ms.exe tool not found or is not executable at path: $TWO_MS_PATH"
+    echo "Error: 2ms.exe tool not found or is not executable at path: $TWO_MS_PATH" >&2
+    exit 1
 fi
 
-# Run the scan command using the TWO_MS_PATH variable
-if ! RAW_SCAN_RESULT=$("$TWO_MS_PATH" filesystem --path "$SCAN_PATH"); then
-    error "Failed to execute 2ms.exe scan."
-fi
+# Run the scan command and handle failures gracefully
+RAW_SCAN_RESULT=$("$TWO_MS_PATH" filesystem --path "$SCAN_PATH" || true)
 
 # Remove ANSI escape codes from the result
-SCAN_RESULT=$(echo "$RAW_SCAN_RESULT" | sed -E 's/\x1b\[[0-9;]*[mK]//g')
+SCAN_RESULT=$(echo "$RAW_SCAN_RESULT" | sed 's/\x1b\[[0-9;]*m//g')
 
 # Extract the total number of secrets found
 TOTAL_SECRETS=$(echo "$SCAN_RESULT" | grep -Eo "totalsecretsfound:[[:space:]]*[0-9]+" | awk '{print $2}')
 
 # Check if TOTAL_SECRETS is a valid number
 if ! [[ "$TOTAL_SECRETS" =~ ^[0-9]+$ ]]; then
-    error "Unable to determine the total number of secrets found."
+    echo "Error: Unable to determine the total number of secrets found."
+    exit 1
+fi
+
+# Mask secrets to show *** and the last 4 characters
+if [[ "$MASK_SECRETS" == "true" ]]; then
+    MASKED_RESULT=$(echo "$SCAN_RESULT" | sed -E 's/(value: )([a-zA-Z0-9]{1,})(.{4}$)/\1****\3/')
+else
+    MASKED_RESULT="$SCAN_RESULT"
 fi
 
 # Compare total secrets found with the threshold
 if (( TOTAL_SECRETS > THRESHOLD )); then
     echo "Secrets detected! Total secrets found ($TOTAL_SECRETS) exceed the threshold ($THRESHOLD). Pre-commit aborted."
-    echo "$SCAN_RESULT"
+    echo "$MASKED_RESULT"
     exit 1
 else
-    echo "No secrets detected over the threshold. Proceeding with commit."
+    echo "No secrets detected over the threshold ($THRESHOLD). Proceeding with commit."
     exit 0
 fi
